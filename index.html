@@ -38,7 +38,7 @@ label{display:block;text-align:left;font-size:14px;color:#666;margin-bottom:4px}
 </div>
 
 <script>
-const API_URL = 'https://script.google.com/macros/s/AKfycbyqSAcdOyiRkVjAaW4hAkMCV1sn2vewAU-A6qvSXW0xr7XRpPkYnS1ER-muC1PuFbUt/exec';  // ⚠️ 改成你的 Apps Script /exec
+const API_URL = 'https://script.google.com/macros/s/AKfycbxc0i4HM1mKq83XKfU1QPQVxVItzuyYL88nXslR2ryyFiCIHYgVRBOWRnrFu0YKIoZ5/exec';  // ⚠️ 改成你的 Apps Script /exec
 const LIFF_ID = '2010481321-AUGC04fb';
 
 const $ = id => document.getElementById(id);
@@ -100,7 +100,10 @@ function doClock(confirm) {
 }
 
 function confirmEarly() {
-  $('content').innerHTML = '<div class="spin"></div><div class="status">處理中...</div>';
+  $('content').innerHTML = 
+    '<div id="loader" class="spin"></div>' +
+    '<div id="status" class="status">處理中...</div>' +
+    '<div id="info" class="info"></div>';
   doClock(true);
 }
 
