@@ -15,16 +15,15 @@ h2{margin:0 0 20px;color:#333;font-size:22px}
 .spin{display:inline-block;width:40px;height:40px;border:4px solid #eee;border-top:4px solid #06c755;border-radius:50%;animation:s 1s linear infinite}
 @keyframes s{to{transform:rotate(360deg)}}
 .info{font-size:13px;color:#888;margin-top:10px}
-button{background:#06c755;color:#fff;border:0;padding:14px 30px;border-radius:8px;font-size:16px;margin:8px 0;cursor:pointer;width:100%;max-width:280px}
-button.gray{background:#999}
-button.warn{background:#f39c12}
+.btn{display:block;width:100%;max-width:280px;margin:10px auto;padding:14px 20px;border:0;border-radius:8px;font-size:16px;font-weight:bold;color:#fff !important;cursor:pointer;text-align:center;line-height:1.4}
+.btn-green{background:#06c755}
+.btn-orange{background:#f39c12}
+.btn-gray{background:#999}
 input,select,textarea{width:100%;padding:12px;border:1px solid #ddd;border-radius:8px;font-size:16px;margin-bottom:12px;font-family:inherit}
 label{display:block;text-align:left;font-size:14px;color:#666;margin-bottom:4px}
-.rec{padding:10px;border-bottom:1px solid #eee;text-align:left;display:flex;justify-content:space-between;align-items:center}
-.rec-status{font-size:12px;padding:2px 8px;border-radius:4px;color:#fff}
-.rec-status.正常{background:#06c755}
-.rec-status.遲到{background:#f39c12}
-.rec-status.早退{background:#e74c3c}
+.rec{padding:10px;border-bottom:1px solid #eee;text-align:left;display:flex;justify-content:space-between}
+.tag{font-size:12px;padding:2px 8px;border-radius:4px;color:#fff}
+.tag-正常{background:#06c755}.tag-遲到{background:#f39c12}.tag-早退{background:#e74c3c}
 </style>
 </head>
 <body>
@@ -38,13 +37,15 @@ label{display:block;text-align:left;font-size:14px;color:#666;margin-bottom:4px}
 </div>
 
 <script>
-const API_URL = 'https://script.google.com/macros/s/AKfycbxc0i4HM1mKq83XKfU1QPQVxVItzuyYL88nXslR2ryyFiCIHYgVRBOWRnrFu0YKIoZ5/exec';  // ⚠️ 改成你的 Apps Script /exec
+const API_URL = 'https://script.google.com/macros/s/AKfycbyOkDUzpmrDGSpoKWbEkU09TzVBoW4HrgSXkWorlCDMBtPIOicxjFJtFA0YDqZb8INW/exec';  // ⚠️ 改成你的
 const LIFF_ID = '2010481321-AUGC04fb';
 
 const $ = id => document.getElementById(id);
-const setStatus = (t, c) => { $('status').innerHTML = t; if(c) $('status').className = 'status ' + c; };
-const hideLoader = () => $('loader').style.display = 'none';
-const getPage = () => new URLSearchParams(location.search).get('page') || 'clock';
+const params = new URLSearchParams(location.search);
+const getPage = () => params.get('page') || 'clock';
+const getType = () => params.get('type') || 'in';  // in/out
+const setStatus = (t, c) => { if($('status')) { $('status').innerHTML = t; if(c) $('status').className = 'status ' + c; }};
+const hideLoader = () => { if($('loader')) $('loader').style.display = 'none'; };
 
 async function main() {
   try { await liff.init({ liffId: LIFF_ID }); }
@@ -59,32 +60,31 @@ async function main() {
   const page = getPage();
   if (page === 'leave')   return showLeaveForm();
   if (page === 'records') return showRecords();
-  if (page === 'monthly') return showMonthly();
   return doClock(false);
 }
 
 function doClock(confirm) {
-  $('title').textContent = '打卡';
+  const type = getType();
+  $('title').textContent = type === 'out' ? '下班打卡' : '上班打卡';
   setStatus('正在取得 GPS...');
   
   navigator.geolocation.getCurrentPosition(async pos => {
     const { latitude, longitude, accuracy } = pos.coords;
-    setStatus('已定位 (' + Math.round(accuracy) + 'm)，送出中...');
+    setStatus('已定位，送出中...');
     
     try {
       const res = await fetch(API_URL, {
         method:'POST', headers:{ 'Content-Type':'text/plain;charset=utf-8' },
-        body: JSON.stringify({ source:'liff', action:'clock', uid:window.UID, name:window.NAME, latitude, longitude, accuracy, confirm })
+        body: JSON.stringify({ source:'liff', action:'clock', uid:window.UID, name:window.NAME, latitude, longitude, accuracy, confirm, type })
       });
       const data = await res.json();
       
-      // 早退要確認
       if (data.needConfirm) {
         hideLoader();
         $('content').innerHTML = 
-          '<div class="status warn">⚠️ ' + data.msg.replace(/\n/g, '<br>') + '</div>' +
-          '<button class="warn" onclick="confirmEarly()">確認打卡（早退）</button>' +
-          '<button class="gray" onclick="liff.closeWindow()">取消</button>';
+          '<div class="status warn" style="white-space:pre-wrap">⚠️ ' + data.msg + '</div>' +
+          '<button type="button" class="btn btn-orange" onclick="confirmEarly()">確認打卡（早退）</button>' +
+          '<button type="button" class="btn btn-gray" onclick="liff.closeWindow()">取消</button>';
         return;
       }
       
@@ -100,10 +100,7 @@ function doClock(confirm) {
 }
 
 function confirmEarly() {
-  $('content').innerHTML = 
-    '<div id="loader" class="spin"></div>' +
-    '<div id="status" class="status">處理中...</div>' +
-    '<div id="info" class="info"></div>';
+  $('content').innerHTML = '<div id="loader" class="spin"></div><div id="status" class="status">處理中...</div><div id="info" class="info"></div>';
   doClock(true);
 }
 
@@ -115,7 +112,7 @@ function showLeaveForm() {
     '<label>開始日期</label><input type="date" id="lstart">' +
     '<label>結束日期</label><input type="date" id="lend">' +
     '<label>事由</label><textarea id="lreason" rows="3"></textarea>' +
-    '<button onclick="submitLeave()">送出</button>';
+    '<button type="button" class="btn btn-green" onclick="submitLeave()">送出</button>';
 }
 async function submitLeave() {
   const type = $('ltype').value, start = $('lstart').value, end = $('lend').value;
@@ -141,7 +138,7 @@ async function showRecords() {
   hideLoader();
   if (!data.ok) return setStatus(data.msg, 'err');
   const list = data.records.map(r => 
-    '<div class="rec"><span>' + r.time + ' ' + r.type + '</span><span class="rec-status ' + r.status + '">' + r.status + '</span></div>'
+    '<div class="rec"><span>' + r.time + ' ' + r.type + '</span><span class="tag tag-' + r.status + '">' + r.status + '</span></div>'
   ).join('') || '<div>無紀錄</div>';
   $('content').innerHTML = '<div style="max-height:500px;overflow:auto">' + list + '</div>';
 }
