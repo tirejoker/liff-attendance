@@ -11,13 +11,20 @@ body{font-family:-apple-system,'PingFang TC',sans-serif;padding:20px;text-align:
 .box{background:#fff;padding:30px 20px;border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,0.08);max-width:400px;margin:40px auto}
 h2{margin:0 0 20px;color:#333;font-size:22px}
 .status{font-size:16px;margin:20px 0;color:#333;line-height:1.6;word-break:break-all}
-.ok{color:#06c755}.err{color:#e74c3c}
+.ok{color:#06c755}.err{color:#e74c3c}.warn{color:#f39c12}
 .spin{display:inline-block;width:40px;height:40px;border:4px solid #eee;border-top:4px solid #06c755;border-radius:50%;animation:s 1s linear infinite}
 @keyframes s{to{transform:rotate(360deg)}}
 .info{font-size:13px;color:#888;margin-top:10px}
-button{background:#06c755;color:#fff;border:0;padding:14px 30px;border-radius:8px;font-size:16px;margin-top:15px;cursor:pointer;width:100%;max-width:280px}
+button{background:#06c755;color:#fff;border:0;padding:14px 30px;border-radius:8px;font-size:16px;margin:8px 0;cursor:pointer;width:100%;max-width:280px}
+button.gray{background:#999}
+button.warn{background:#f39c12}
 input,select,textarea{width:100%;padding:12px;border:1px solid #ddd;border-radius:8px;font-size:16px;margin-bottom:12px;font-family:inherit}
 label{display:block;text-align:left;font-size:14px;color:#666;margin-bottom:4px}
+.rec{padding:10px;border-bottom:1px solid #eee;text-align:left;display:flex;justify-content:space-between;align-items:center}
+.rec-status{font-size:12px;padding:2px 8px;border-radius:4px;color:#fff}
+.rec-status.正常{background:#06c755}
+.rec-status.遲到{background:#f39c12}
+.rec-status.早退{background:#e74c3c}
 </style>
 </head>
 <body>
@@ -31,8 +38,7 @@ label{display:block;text-align:left;font-size:14px;color:#666;margin-bottom:4px}
 </div>
 
 <script>
-// ⚠️ 改成你的 Apps Script /exec 網址
-const API_URL = 'https://script.google.com/macros/s/AKfycbwHDACsvRAtimF9W9u4eM0b7qcOaNYgQmHg7UAwVrseUCzzUUuejYwhMrXJ4rpz3wzh/exec';
+const API_URL = 'https://script.google.com/macros/s/你的部署ID/exec';  // ⚠️ 改成你的 Apps Script /exec
 const LIFF_ID = '2010481321-AUGC04fb';
 
 const $ = id => document.getElementById(id);
@@ -40,15 +46,9 @@ const setStatus = (t, c) => { $('status').innerHTML = t; if(c) $('status').class
 const hideLoader = () => $('loader').style.display = 'none';
 const getPage = () => new URLSearchParams(location.search).get('page') || 'clock';
 
-window.addEventListener('error', e => { hideLoader(); setStatus('❌ JS錯誤：' + e.message, 'err'); });
-
 async function main() {
-  try {
-    await liff.init({ liffId: LIFF_ID });
-  } catch(e) {
-    hideLoader(); return setStatus('❌ liff.init 失敗：' + e.message, 'err');
-  }
-  
+  try { await liff.init({ liffId: LIFF_ID }); }
+  catch(e) { hideLoader(); return setStatus('❌ ' + e.message, 'err'); }
   if (!liff.isLoggedIn()) { liff.login(); return; }
   
   const profile = await liff.getProfile();
@@ -57,12 +57,13 @@ async function main() {
   $('info').textContent = profile.displayName;
   
   const page = getPage();
-  if (page === 'leave') return showLeaveForm();
+  if (page === 'leave')   return showLeaveForm();
   if (page === 'records') return showRecords();
-  return doClock();
+  if (page === 'monthly') return showMonthly();
+  return doClock(false);
 }
 
-function doClock() {
+function doClock(confirm) {
   $('title').textContent = '打卡';
   setStatus('正在取得 GPS...');
   
@@ -72,11 +73,21 @@ function doClock() {
     
     try {
       const res = await fetch(API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ source:'liff', action:'clock', uid:window.UID, name:window.NAME, latitude, longitude, accuracy })
+        method:'POST', headers:{ 'Content-Type':'text/plain;charset=utf-8' },
+        body: JSON.stringify({ source:'liff', action:'clock', uid:window.UID, name:window.NAME, latitude, longitude, accuracy, confirm })
       });
       const data = await res.json();
+      
+      // 早退要確認
+      if (data.needConfirm) {
+        hideLoader();
+        $('content').innerHTML = 
+          '<div class="status warn">⚠️ ' + data.msg.replace(/\n/g, '<br>') + '</div>' +
+          '<button class="warn" onclick="confirmEarly()">確認打卡（早退）</button>' +
+          '<button class="gray" onclick="liff.closeWindow()">取消</button>';
+        return;
+      }
+      
       hideLoader();
       setStatus((data.ok ? '✅ ' : '❌ ') + data.msg, data.ok ? 'ok' : 'err');
       if (data.ok) setTimeout(() => liff.closeWindow(), 2500);
@@ -85,29 +96,31 @@ function doClock() {
     hideLoader();
     const msgs = {1:'請允許位置權限', 2:'無法取得位置', 3:'定位逾時'};
     setStatus('❌ ' + (msgs[err.code] || err.message), 'err');
-  }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+  }, { enableHighAccuracy:true, timeout:15000, maximumAge:0 });
+}
+
+function confirmEarly() {
+  $('content').innerHTML = '<div class="spin"></div><div class="status">處理中...</div>';
+  doClock(true);
 }
 
 function showLeaveForm() {
   $('title').textContent = '請假申請';
   hideLoader();
-  $('content').innerHTML = 
+  $('content').innerHTML =
     '<label>假別</label><select id="ltype"><option>事假</option><option>病假</option><option>特休</option><option>婚假</option><option>喪假</option><option>產假</option></select>' +
     '<label>開始日期</label><input type="date" id="lstart">' +
     '<label>結束日期</label><input type="date" id="lend">' +
     '<label>事由</label><textarea id="lreason" rows="3"></textarea>' +
     '<button onclick="submitLeave()">送出</button>';
 }
-
 async function submitLeave() {
   const type = $('ltype').value, start = $('lstart').value, end = $('lend').value;
   const reason = $('lreason').value.trim();
   if (!start || !end || !reason) return alert('請填寫完整');
-  
   $('content').innerHTML = '<div class="spin"></div><div class="status">送出中...</div>';
   const res = await fetch(API_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    method:'POST', headers:{ 'Content-Type':'text/plain;charset=utf-8' },
     body: JSON.stringify({ source:'liff', action:'leave', uid:window.UID, name:window.NAME, type, start, end, reason })
   });
   const data = await res.json();
@@ -118,17 +131,17 @@ async function submitLeave() {
 async function showRecords() {
   $('title').textContent = '我的紀錄';
   const res = await fetch(API_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    method:'POST', headers:{ 'Content-Type':'text/plain;charset=utf-8' },
     body: JSON.stringify({ source:'liff', action:'records', uid:window.UID })
   });
   const data = await res.json();
   hideLoader();
   if (!data.ok) return setStatus(data.msg, 'err');
-  const list = data.records.map(r => '<div style="padding:8px;border-bottom:1px solid #eee;text-align:left">' + r + '</div>').join('') || '<div>無紀錄</div>';
-  $('content').innerHTML = '<div style="max-height:400px;overflow:auto">' + list + '</div>';
+  const list = data.records.map(r => 
+    '<div class="rec"><span>' + r.time + ' ' + r.type + '</span><span class="rec-status ' + r.status + '">' + r.status + '</span></div>'
+  ).join('') || '<div>無紀錄</div>';
+  $('content').innerHTML = '<div style="max-height:500px;overflow:auto">' + list + '</div>';
 }
-
 main();
 </script>
 </body>
