@@ -2,147 +2,299 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>固泰銘打卡</title>
-<script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>固泰銘打卡系統</title>
 <style>
-*{box-sizing:border-box}
-body{font-family:-apple-system,'PingFang TC',sans-serif;padding:20px;text-align:center;background:#f5f5f5;margin:0}
-.box{background:#fff;padding:30px 20px;border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,0.08);max-width:400px;margin:40px auto}
-h2{margin:0 0 20px;color:#333;font-size:22px}
-.status{font-size:16px;margin:20px 0;color:#333;line-height:1.6;word-break:break-all}
-.ok{color:#06c755}.err{color:#e74c3c}.warn{color:#f39c12}
-.spin{display:inline-block;width:40px;height:40px;border:4px solid #eee;border-top:4px solid #06c755;border-radius:50%;animation:s 1s linear infinite}
-@keyframes s{to{transform:rotate(360deg)}}
-.info{font-size:13px;color:#888;margin-top:10px}
-.btn{display:block;width:100%;max-width:280px;margin:10px auto;padding:14px 20px;border:0;border-radius:8px;font-size:16px;font-weight:bold;color:#fff !important;cursor:pointer;text-align:center;line-height:1.4}
-.btn-green{background:#06c755}
-.btn-orange{background:#f39c12}
-.btn-gray{background:#999}
-input,select,textarea{width:100%;padding:12px;border:1px solid #ddd;border-radius:8px;font-size:16px;margin-bottom:12px;font-family:inherit}
-label{display:block;text-align:left;font-size:14px;color:#666;margin-bottom:4px}
-.rec{padding:10px;border-bottom:1px solid #eee;text-align:left;display:flex;justify-content:space-between}
-.tag{font-size:12px;padding:2px 8px;border-radius:4px;color:#fff}
-.tag-正常{background:#06c755}.tag-遲到{background:#f39c12}.tag-早退{background:#e74c3c}
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, sans-serif; background: #f0f4f8; min-height: 100vh; }
+  .container { max-width: 480px; margin: 0 auto; padding: 16px; }
+  .card { background: white; border-radius: 16px; padding: 24px; margin-bottom: 16px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+  h2 { color: #2c3e50; font-size: 1.3rem; margin-bottom: 16px; text-align: center; }
+  .status { text-align: center; padding: 16px; font-size: 1.1rem; border-radius: 12px; margin: 8px 0; }
+  .status.ok { background: #d4edda; color: #155724; }
+  .status.err { background: #f8d7da; color: #721c24; }
+  .status.warn { background: #fff3cd; color: #856404; }
+  .spin { width: 40px; height: 40px; border: 4px solid #e0e0e0; border-top-color: #06c755; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 20px auto; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .btn { display: block; width: 100%; padding: 14px; border: none; border-radius: 12px; font-size: 1rem; font-weight: bold; cursor: pointer; margin-bottom: 10px; transition: opacity 0.2s; }
+  .btn:active { opacity: 0.8; }
+  .btn-green { background: #06c755; color: white; }
+  .btn-orange { background: #ff7043; color: white; }
+  .btn-gray { background: #90a4ae; color: white; }
+  .btn-blue { background: #1a73e8; color: white; }
+  label { display: block; font-size: 0.85rem; color: #666; margin-bottom: 4px; margin-top: 12px; }
+  select, input, textarea { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 0.95rem; }
+  textarea { min-height: 80px; resize: vertical; }
+  .record-item { border-bottom: 1px solid #f0f0f0; padding: 10px 0; }
+  .record-item:last-child { border-bottom: none; }
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; font-weight: bold; }
+  .tag-in { background: #e3f2fd; color: #1565c0; }
+  .tag-out { background: #fce4ec; color: #c62828; }
+  .tag-pending { background: #fff8e1; color: #f57f17; }
+  .tag-approved { background: #e8f5e9; color: #2e7d32; }
+  .tag-rejected { background: #ffebee; color: #b71c1c; }
+  #loader { text-align: center; padding: 30px; }
 </style>
 </head>
 <body>
-<div class="box">
-  <h2 id="title">處理中...</h2>
+<div class="container">
   <div id="content">
-    <div id="loader" class="spin"></div>
-    <div id="status" class="status">正在初始化...</div>
-    <div id="info" class="info"></div>
+    <div id="loader">
+      <div class="spin"></div>
+      <div class="status">初始化中...</div>
+    </div>
   </div>
 </div>
 
+<script charset="UTF-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <script>
-const API_URL = 'https://script.google.com/macros/s/AKfycbyOkDUzpmrDGSpoKWbEkU09TzVBoW4HrgSXkWorlCDMBtPIOicxjFJtFA0YDqZb8INW/exec';  // ⚠️ 改成你的
 const LIFF_ID = '2010481321-AUGC04fb';
+const API_URL = 'https://script.google.com/macros/s/AKfycbyJ9Jt8k4NkL3OHD5fm4djAZmO8u_EwuwTl1ihcZqQcxB09umn6yUeNBLf3wf0p6hSp/exec'; // ← 改成你的 Apps Script URL
 
-const $ = id => document.getElementById(id);
-const params = new URLSearchParams(location.search);
-const getPage = () => params.get('page') || 'clock';
-const getType = () => params.get('type') || 'in';  // in/out
-const setStatus = (t, c) => { if($('status')) { $('status').innerHTML = t; if(c) $('status').className = 'status ' + c; }};
-const hideLoader = () => { if($('loader')) $('loader').style.display = 'none'; };
+window.UID = '';
+window.NAME = '';
 
-async function main() {
-  try { await liff.init({ liffId: LIFF_ID }); }
-  catch(e) { hideLoader(); return setStatus('❌ ' + e.message, 'err'); }
-  if (!liff.isLoggedIn()) { liff.login(); return; }
-  
-  const profile = await liff.getProfile();
-  window.UID = profile.userId;
-  window.NAME = profile.displayName;
-  $('info').textContent = profile.displayName;
-  
-  const page = getPage();
-  if (page === 'leave')   return showLeaveForm();
-  if (page === 'records') return showRecords();
-  return doClock(false);
-}
+function $(id) { return document.getElementById(id); }
 
-function doClock(confirm) {
-  const type = getType();
-  $('title').textContent = type === 'out' ? '下班打卡' : '上班打卡';
-  setStatus('正在取得 GPS...');
-  
-  navigator.geolocation.getCurrentPosition(async pos => {
-    const { latitude, longitude, accuracy } = pos.coords;
-    setStatus('已定位，送出中...');
+async function init() {
+  try {
+    await liff.init({ liffId: LIFF_ID });
+    if (!liff.isLoggedIn()) { liff.login(); return; }
+    const profile = await liff.getProfile();
+    window.UID = profile.userId;
+    window.NAME = profile.displayName;
     
-    try {
-      const res = await fetch(API_URL, {
-        method:'POST', headers:{ 'Content-Type':'text/plain;charset=utf-8' },
-        body: JSON.stringify({ source:'liff', action:'clock', uid:window.UID, name:window.NAME, latitude, longitude, accuracy, confirm, type })
-      });
-      const data = await res.json();
-      
-      if (data.needConfirm) {
-        hideLoader();
-        $('content').innerHTML = 
-          '<div class="status warn" style="white-space:pre-wrap">⚠️ ' + data.msg + '</div>' +
-          '<button type="button" class="btn btn-orange" onclick="confirmEarly()">確認打卡（早退）</button>' +
-          '<button type="button" class="btn btn-gray" onclick="liff.closeWindow()">取消</button>';
-        return;
-      }
-      
-      hideLoader();
-      setStatus((data.ok ? '✅ ' : '❌ ') + data.msg, data.ok ? 'ok' : 'err');
+    const params = new URLSearchParams(location.search);
+    const page = params.get('page') || 'clock';
+    const type = params.get('type') || 'in';
+    
+    if (page === 'clock') renderClock(type);
+    else if (page === 'leave') renderLeave();
+    else if (page === 'records') renderRecords();
+    else renderClock(type);
+  } catch(e) {
+    $('content').innerHTML = '<div class="card"><div class="status err">❌ 初始化失敗：' + e.message + '</div></div>';
+  }
+}
+
+// ==================== 打卡頁面 ====================
+function renderClock(type) {
+  const typeText = type === 'in' ? '上班打卡' : '下班打卡';
+  const btnClass = type === 'in' ? 'btn-green' : 'btn-orange';
+  $('content').innerHTML = `
+    <div class="card">
+      <h2>📍 ${typeText}</h2>
+      <div id="info" class="status warn">正在取得位置...</div>
+      <div id="loader" style="display:none;text-align:center;padding:20px">
+        <div class="spin"></div>
+        <div class="status">打卡中...</div>
+      </div>
+      <div id="status"></div>
+      <button type="button" id="clockBtn" class="btn ${btnClass}" onclick="doClock('${type}')" disabled>
+        ${typeText}
+      </button>
+      <button type="button" class="btn btn-gray" onclick="liff.closeWindow()">關閉</button>
+    </div>`;
+  getLocation(type);
+}
+
+let _lat = null, _lng = null;
+
+function getLocation(type) {
+  if (!navigator.geolocation) {
+    $('info').textContent = '❌ 裝置不支援 GPS';
+    $('info').className = 'status err';
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      _lat = pos.coords.latitude;
+      _lng = pos.coords.longitude;
+      const acc = Math.round(pos.coords.accuracy);
+      $('info').textContent = '✅ 位置取得成功（精確度 ' + acc + 'm）';
+      $('info').className = 'status ok';
+      const btn = $('clockBtn');
+      if (btn) btn.disabled = false;
+    },
+    err => {
+      $('info').textContent = '❌ 無法取得位置：' + err.message;
+      $('info').className = 'status err';
+    },
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+  );
+}
+
+async function doClock(type) {
+  if (!_lat || !_lng) { alert('尚未取得位置，請稍候'); return; }
+  $('loader').style.display = 'block';
+  $('clockBtn').disabled = true;
+  $('status').innerHTML = '';
+  
+  try {
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ source: 'liff', action: 'clock', uid: window.UID, lat: _lat, lng: _lng, type })
+    });
+    const data = await res.json();
+    $('loader').style.display = 'none';
+    
+    if (data.needConfirm) {
+      $('status').innerHTML = `
+        <div class="status warn">${data.msg}</div>
+        <button type="button" class="btn btn-orange" onclick="confirmClock('${type}')">確認打下班卡</button>
+        <button type="button" class="btn btn-gray" onclick="liff.closeWindow()">取消</button>`;
+      $('clockBtn').style.display = 'none';
+    } else {
+      $('status').innerHTML = `<div class="status ${data.ok ? 'ok' : 'err'}">${data.ok ? '✅ ' : '❌ '}${data.msg}</div>`;
       if (data.ok) setTimeout(() => liff.closeWindow(), 2500);
-    } catch(e) { hideLoader(); setStatus('❌ 連線失敗：' + e.message, 'err'); }
-  }, err => {
-    hideLoader();
-    const msgs = {1:'請允許位置權限', 2:'無法取得位置', 3:'定位逾時'};
-    setStatus('❌ ' + (msgs[err.code] || err.message), 'err');
-  }, { enableHighAccuracy:true, timeout:15000, maximumAge:0 });
+      else $('clockBtn').disabled = false;
+    }
+  } catch(e) {
+    $('loader').style.display = 'none';
+    $('status').innerHTML = `<div class="status err">❌ 網路錯誤：${e.message}</div>`;
+    $('clockBtn').disabled = false;
+  }
 }
 
-function confirmEarly() {
-  $('content').innerHTML = '<div id="loader" class="spin"></div><div id="status" class="status">處理中...</div><div id="info" class="info"></div>';
-  doClock(true);
+async function confirmClock(type) {
+  $('content').innerHTML = `
+    <div class="card">
+      <h2>下班打卡確認</h2>
+      <div id="loader" style="text-align:center;padding:20px"><div class="spin"></div><div>打卡中...</div></div>
+      <div id="status"></div>
+      <div id="info"></div>
+    </div>`;
+  
+  try {
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ source: 'liff', action: 'clock', uid: window.UID, lat: _lat, lng: _lng, type, forceOut: true })
+    });
+    const data = await res.json();
+    $('loader').style.display = 'none';
+    $('status').innerHTML = `<div class="status ${data.ok ? 'ok' : 'err'}">${data.ok ? '✅ ' : '❌ '}${data.msg}</div>`;
+    if (data.ok) setTimeout(() => liff.closeWindow(), 2500);
+  } catch(e) {
+    $('loader').style.display = 'none';
+    $('status').innerHTML = `<div class="status err">❌ 網路錯誤：${e.message}</div>`;
+  }
 }
 
-function showLeaveForm() {
-  $('title').textContent = '請假申請';
-  hideLoader();
-  $('content').innerHTML =
-    '<label>假別</label><select id="ltype"><option>事假</option><option>病假</option><option>特休</option><option>婚假</option><option>喪假</option><option>產假</option></select>' +
-    '<label>開始日期</label><input type="date" id="lstart">' +
-    '<label>結束日期</label><input type="date" id="lend">' +
-    '<label>事由</label><textarea id="lreason" rows="3"></textarea>' +
-    '<button type="button" class="btn btn-green" onclick="submitLeave()">送出</button>';
+// ==================== 請假頁面 ====================
+function renderLeave() {
+  $('content').innerHTML = `
+    <div class="card">
+      <h2>📝 請假申請</h2>
+      <label>假別</label>
+      <select id="ltype">
+        <option value="事假">事假</option>
+        <option value="病假">病假</option>
+        <option value="特休">特休</option>
+        <option value="婚假">婚假</option>
+        <option value="喪假">喪假</option>
+        <option value="公假">公假</option>
+      </select>
+      <label>開始日期</label>
+      <input type="date" id="lstart">
+      <label>結束日期</label>
+      <input type="date" id="lend">
+      <label>請假原因</label>
+      <textarea id="lreason" placeholder="請說明請假原因..."></textarea>
+      <div id="lstatus"></div>
+      <button type="button" class="btn btn-blue" onclick="submitLeave()" style="margin-top:16px">送出請假申請</button>
+      <button type="button" class="btn btn-gray" onclick="liff.closeWindow()">取消</button>
+    </div>`;
+  
+  // 預設今天日期
+  const today = new Date().toISOString().split('T')[0];
+  $('lstart').value = today;
+  $('lend').value = today;
 }
+
 async function submitLeave() {
-  const type = $('ltype').value, start = $('lstart').value, end = $('lend').value;
+  const type = $('ltype').value;
+  const start = $('lstart').value;
+  const end = $('lend').value;
   const reason = $('lreason').value.trim();
-  if (!start || !end || !reason) return alert('請填寫完整');
-  $('content').innerHTML = '<div class="spin"></div><div class="status">送出中...</div>';
-  const res = await fetch(API_URL, {
-    method:'POST', headers:{ 'Content-Type':'text/plain;charset=utf-8' },
-    body: JSON.stringify({ source:'liff', action:'leave', uid:window.UID, name:window.NAME, type, start, end, reason })
-  });
-  const data = await res.json();
-  $('content').innerHTML = '<div class="status ' + (data.ok?'ok':'err') + '">' + (data.ok?'✅ ':'❌ ') + data.msg + '</div>';
-  if (data.ok) setTimeout(() => liff.closeWindow(), 2500);
+  
+  if (!start || !end || !reason) { alert('請填寫完整資訊'); return; }
+  if (start > end) { alert('結束日期不能早於開始日期'); return; }
+  
+  $('lstatus').innerHTML = '<div class="spin"></div><div class="status">送出中...</div>';
+  
+  try {
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ source: 'liff', action: 'leave', uid: window.UID, name: window.NAME, type, start, end, reason })
+    });
+    const data = await res.json();
+    $('lstatus').innerHTML = `<div class="status ${data.ok ? 'ok' : 'err'}">${data.ok ? '✅ ' : '❌ '}${data.msg}</div>`;
+    if (data.ok) setTimeout(() => liff.closeWindow(), 2500);
+  } catch(e) {
+    $('lstatus').innerHTML = `<div class="status err">❌ 網路錯誤：${e.message}</div>`;
+  }
 }
 
-async function showRecords() {
-  $('title').textContent = '我的紀錄';
-  const res = await fetch(API_URL, {
-    method:'POST', headers:{ 'Content-Type':'text/plain;charset=utf-8' },
-    body: JSON.stringify({ source:'liff', action:'records', uid:window.UID })
-  });
-  const data = await res.json();
-  hideLoader();
-  if (!data.ok) return setStatus(data.msg, 'err');
-  const list = data.records.map(r => 
-    '<div class="rec"><span>' + r.time + ' ' + r.type + '</span><span class="tag tag-' + r.status + '">' + r.status + '</span></div>'
-  ).join('') || '<div>無紀錄</div>';
-  $('content').innerHTML = '<div style="max-height:500px;overflow:auto">' + list + '</div>';
+// ==================== 紀錄頁面 ====================
+async function renderRecords() {
+  $('content').innerHTML = '<div class="card"><div class="spin"></div><div class="status">載入中...</div></div>';
+  
+  try {
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ source: 'liff', action: 'records', uid: window.UID })
+    });
+    const data = await res.json();
+    
+    if (!data.ok) {
+      $('content').innerHTML = `<div class="card"><div class="status err">❌ ${data.msg}</div></div>`;
+      return;
+    }
+    
+    let html = `<div class="card"><h2>📋 ${data.name} 本月紀錄</h2>`;
+    
+    // 打卡紀錄
+    html += '<h3 style="margin:12px 0 8px;color:#555">打卡紀錄</h3>';
+    if (data.records.length === 0) {
+      html += '<div style="color:#999;text-align:center;padding:8px">本月尚無打卡紀錄</div>';
+    } else {
+      data.records.forEach(r => {
+        html += `<div class="record-item">
+          <span class="tag ${r.type === '上班' ? 'tag-in' : 'tag-out'}">${r.type}</span>
+          <span style="margin-left:8px;font-weight:bold">${r.date}</span>
+          <span style="margin-left:8px;color:#666">${r.time}</span>
+          ${r.note ? '<span style="margin-left:8px;color:#e53935;font-size:0.85rem">' + r.note + '</span>' : ''}
+        </div>`;
+      });
+    }
+    
+    // 請假紀錄
+    html += '<h3 style="margin:16px 0 8px;color:#555">請假紀錄</h3>';
+    if (data.leaves.length === 0) {
+      html += '<div style="color:#999;text-align:center;padding:8px">本月尚無請假紀錄</div>';
+    } else {
+      data.leaves.forEach(l => {
+        const tagClass = l.status === '已核准' ? 'tag-approved' : (l.status === '已駁回' ? 'tag-rejected' : 'tag-pending');
+        html += `<div class="record-item">
+          <span class="tag ${tagClass}">${l.status}</span>
+          <span style="margin-left:8px;font-weight:bold">${l.type}</span>
+          <span style="margin-left:8px;color:#666;font-size:0.85rem">${l.start}~${l.end}</span>
+        </div>`;
+      });
+    }
+    
+    html += '<button type="button" class="btn btn-gray" onclick="liff.closeWindow()" style="margin-top:16px">關閉</button></div>';
+    $('content').innerHTML = html;
+  } catch(e) {
+    $('content').innerHTML = `<div class="card"><div class="status err">❌ 載入失敗：${e.message}</div></div>`;
+  }
 }
-main();
+
+init();
 </script>
 </body>
 </html>
