@@ -35,6 +35,11 @@
   .tag-approved { background: #e8f5e9; color: #2e7d32; }
   .tag-rejected { background: #ffebee; color: #b71c1c; }
   #loader { text-align: center; padding: 30px; }
+  .announce { margin: 12px 0; border: 1px solid #eee; border-radius: 10px; overflow: hidden; }
+  .ann-title { background: #1a73e8; color: white; font-weight: bold; font-size: 1.1rem; padding: 10px 14px; }
+  .ann-sub { background: #e8f0fe; color: #1a73e8; font-weight: bold; padding: 6px 14px; }
+  .ann-brand { background: #fff3cd; color: #856404; font-weight: bold; padding: 8px 14px; border-top: 2px solid #ffc107; margin-top: 4px; }
+  .ann-text { padding: 6px 14px 6px 24px; color: #333; font-size: 0.9rem; }
 </style>
 </head>
 <body>
@@ -50,10 +55,11 @@
 <script charset="UTF-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <script>
 const LIFF_ID = '2010481321-AUGC04fb';
-const API_URL = 'https://script.google.com/macros/s/AKfycbzhaKPGoxi7aNdyH6HQ_PrqwfUlBbd2jRjMdLo9Y1iNTtnAZKopimFThovSt6LcFl6C/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbwsRDppjbqYnajD7xGVaZhwDNOaBpmbep4tTueDeti9LpP6_IbGcFoJf4Mlry9GKlO2/exec';
 
 window.UID = '';
 window.NAME = '';
+let _lat = null, _lng = null;
 
 function $(id) { return document.getElementById(id); }
 
@@ -82,24 +88,27 @@ async function init() {
 function renderClock(type) {
   const typeText = type === 'in' ? '上班打卡' : '下班打卡';
   const btnClass = type === 'in' ? 'btn-green' : 'btn-orange';
+
   $('content').innerHTML = `
     <div class="card">
       <h2>📍 ${typeText}</h2>
       <div id="info" class="status warn">正在取得位置...</div>
+      <div id="countdownBox" class="status warn" style="font-size:1.4rem;font-weight:bold">請稍候 <span id="cd">6</span> 秒...</div>
+      <div id="announceBox"></div>
       <div id="loader" style="display:none;text-align:center;padding:20px">
         <div class="spin"></div>
         <div class="status">打卡中...</div>
       </div>
       <div id="status"></div>
-      <button type="button" id="clockBtn" class="btn ${btnClass}" onclick="doClock('${type}')" disabled>
+      <button type="button" id="clockBtn" class="btn ${btnClass}" onclick="doClock('${type}')" disabled style="display:none">
         ${typeText}
       </button>
       <button type="button" class="btn btn-gray" onclick="liff.closeWindow()">關閉</button>
     </div>`;
-  getLocation(type);
-}
 
-let _lat = null, _lng = null;
+  getLocation(type);
+  loadAnnouncement();
+}
 
 function getLocation(type) {
   if (!navigator.geolocation) {
@@ -114,8 +123,6 @@ function getLocation(type) {
       const acc = Math.round(pos.coords.accuracy);
       $('info').textContent = '✅ 位置取得成功（精確度 ' + acc + 'm）';
       $('info').className = 'status ok';
-      const btn = $('clockBtn');
-      if (btn) btn.disabled = false;
     },
     err => {
       $('info').textContent = '❌ 無法取得位置：' + err.message;
@@ -123,6 +130,55 @@ function getLocation(type) {
     },
     { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
   );
+}
+
+function startCountdown(seconds) {
+  let n = seconds;
+  const cd = $('cd');
+  if (cd) cd.textContent = n;
+  const timer = setInterval(() => {
+    n--;
+    const cdEl = $('cd');
+    if (cdEl) cdEl.textContent = n;
+    if (n <= 0) {
+      clearInterval(timer);
+      const box = $('countdownBox');
+      if (box) box.style.display = 'none';
+      const btn = $('clockBtn');
+      if (btn) {
+        btn.style.display = 'block';
+        if (_lat && _lng) btn.disabled = false;
+      }
+    }
+  }, 1000);
+}
+
+async function loadAnnouncement() {
+  let seconds = 6;
+  try {
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ source: 'liff', action: 'announce' })
+    });
+    const data = await res.json();
+    if (data.countdown) seconds = data.countdown;
+
+    if (data.ok && data.items && data.items.length > 0) {
+      let html = '<div class="announce">';
+      data.items.forEach(item => {
+        if (item.type === 'title') html += '<div class="ann-title">📢 ' + item.text + '</div>';
+        else if (item.type === 'sub') html += '<div class="ann-sub">' + item.text + '</div>';
+        else if (item.type === 'brand') html += '<div class="ann-brand">' + item.text + '</div>';
+        else html += '<div class="ann-text">' + item.text + '</div>';
+      });
+      html += '</div>';
+      $('announceBox').innerHTML = html;
+    }
+  } catch(e) {
+    // 公告載入失敗不影響打卡流程
+  }
+  startCountdown(seconds);
 }
 
 async function doClock(type) {
