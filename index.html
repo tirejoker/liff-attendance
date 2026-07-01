@@ -88,20 +88,21 @@ async function init() {
 function renderClock(type) {
   const typeText = type === 'in' ? '上班打卡' : '下班打卡';
   const btnClass = type === 'in' ? 'btn-green' : 'btn-orange';
+  window._btnClass = btnClass;
+  window._typeText = typeText;
 
   $('content').innerHTML = `
     <div class="card">
       <h2>📍 ${typeText}</h2>
       <div id="info" class="status warn">正在取得位置...</div>
-      <div id="countdownBox" class="status warn" style="font-size:1.4rem;font-weight:bold">請稍候 <span id="cd">6</span> 秒...</div>
       <div id="announceBox"></div>
       <div id="loader" style="display:none;text-align:center;padding:20px">
         <div class="spin"></div>
         <div class="status">打卡中...</div>
       </div>
       <div id="status"></div>
-      <button type="button" id="clockBtn" class="btn ${btnClass}" onclick="doClock('${type}')" disabled style="display:none">
-        ${typeText}
+      <button type="button" id="clockBtn" class="btn btn-gray" onclick="doClock('${type}')" disabled>
+        請稍候 (<span id="cd">6</span>)
       </button>
       <button type="button" class="btn btn-gray" onclick="liff.closeWindow()">關閉</button>
     </div>`;
@@ -123,6 +124,10 @@ function getLocation(type) {
       const acc = Math.round(pos.coords.accuracy);
       $('info').textContent = '✅ 位置取得成功（精確度 ' + acc + 'm）';
       $('info').className = 'status ok';
+      if (_countdownDone) {
+        const btn = $('clockBtn');
+        if (btn) btn.disabled = false;
+      }
     },
     err => {
       $('info').textContent = '❌ 無法取得位置：' + err.message;
@@ -134,21 +139,20 @@ function getLocation(type) {
 
 function startCountdown(seconds) {
   let n = seconds;
-  const cd = $('cd');
-  if (cd) cd.textContent = n;
+  const btn = $('clockBtn');
+  if (btn) btn.textContent = '請稍候 (' + n + ')';
   const timer = setInterval(() => {
     n--;
-    const cdEl = $('cd');
-    if (cdEl) cdEl.textContent = n;
+    const b = $('clockBtn');
+    if (!b) { clearInterval(timer); return; }
     if (n <= 0) {
       clearInterval(timer);
-      const box = $('countdownBox');
-      if (box) box.style.display = 'none';
-      const btn = $('clockBtn');
-      if (btn) {
-        btn.style.display = 'block';
-        if (_lat && _lng) btn.disabled = false;
-      }
+      _countdownDone = true;
+      b.className = 'btn ' + window._btnClass;
+      b.textContent = window._typeText;
+      if (_lat && _lng) b.disabled = false;
+    } else {
+      b.textContent = '請稍候 (' + n + ')';
     }
   }, 1000);
 }
