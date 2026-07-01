@@ -10,6 +10,7 @@
   .container { max-width: 480px; margin: 0 auto; padding: 16px; }
   .card { background: white; border-radius: 16px; padding: 24px; margin-bottom: 16px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
   h2 { color: #2c3e50; font-size: 1.3rem; margin-bottom: 16px; text-align: center; }
+  h3 { color: #555; }
   .status { text-align: center; padding: 16px; font-size: 1.1rem; border-radius: 12px; margin: 8px 0; }
   .status.ok { background: #d4edda; color: #155724; }
   .status.err { background: #f8d7da; color: #721c24; }
@@ -49,7 +50,7 @@
 <script charset="UTF-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <script>
 const LIFF_ID = '2010481321-AUGC04fb';
-const API_URL = 'https://script.google.com/macros/s/AKfycbxS0yEtyGJRZ28Gpvbi90BttXHKk7Ne5SZu7mSHajv9d54L_elYt9RVbgS9RB0PeRpV/exec'; // ← 改成你的 Apps Script URL
+const API_URL = 'https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec'; // ← 改成你的 Apps Script /exec URL
 
 window.UID = '';
 window.NAME = '';
@@ -63,11 +64,11 @@ async function init() {
     const profile = await liff.getProfile();
     window.UID = profile.userId;
     window.NAME = profile.displayName;
-    
+
     const params = new URLSearchParams(location.search);
     const page = params.get('page') || 'clock';
     const type = params.get('type') || 'in';
-    
+
     if (page === 'clock') renderClock(type);
     else if (page === 'leave') renderLeave();
     else if (page === 'records') renderRecords();
@@ -129,7 +130,7 @@ async function doClock(type) {
   $('loader').style.display = 'block';
   $('clockBtn').disabled = true;
   $('status').innerHTML = '';
-  
+
   try {
     const res = await fetch(API_URL, {
       method: 'POST',
@@ -138,7 +139,7 @@ async function doClock(type) {
     });
     const data = await res.json();
     $('loader').style.display = 'none';
-    
+
     if (data.needConfirm) {
       $('status').innerHTML = `
         <div class="status warn">${data.msg}</div>
@@ -163,9 +164,8 @@ async function confirmClock(type) {
       <h2>下班打卡確認</h2>
       <div id="loader" style="text-align:center;padding:20px"><div class="spin"></div><div>打卡中...</div></div>
       <div id="status"></div>
-      <div id="info"></div>
     </div>`;
-  
+
   try {
     const res = await fetch(API_URL, {
       method: 'POST',
@@ -196,39 +196,77 @@ function renderLeave() {
         <option value="喪假">喪假</option>
         <option value="公假">公假</option>
       </select>
-      <label>開始日期</label>
-      <input type="date" id="lstart">
-      <label>結束日期</label>
-      <input type="date" id="lend">
+      <label>請假方式</label>
+      <select id="lunit" onchange="toggleUnit()">
+        <option value="day">整天</option>
+        <option value="hour">小時（部分時段）</option>
+      </select>
+      <div id="dayBox">
+        <label>開始日期</label>
+        <input type="date" id="lstart">
+        <label>結束日期</label>
+        <input type="date" id="lend">
+      </div>
+      <div id="hourBox" style="display:none">
+        <label>日期</label>
+        <input type="date" id="ldate">
+        <label>開始時間</label>
+        <input type="time" id="lstime">
+        <label>結束時間</label>
+        <input type="time" id="letime">
+      </div>
       <label>請假原因</label>
       <textarea id="lreason" placeholder="請說明請假原因..."></textarea>
       <div id="lstatus"></div>
       <button type="button" class="btn btn-blue" onclick="submitLeave()" style="margin-top:16px">送出請假申請</button>
       <button type="button" class="btn btn-gray" onclick="liff.closeWindow()">取消</button>
     </div>`;
-  
-  // 預設今天日期
+
   const today = new Date().toISOString().split('T')[0];
   $('lstart').value = today;
   $('lend').value = today;
+  $('ldate').value = today;
+}
+
+function toggleUnit() {
+  const u = $('lunit').value;
+  $('dayBox').style.display = u === 'day' ? 'block' : 'none';
+  $('hourBox').style.display = u === 'hour' ? 'block' : 'none';
 }
 
 async function submitLeave() {
   const type = $('ltype').value;
-  const start = $('lstart').value;
-  const end = $('lend').value;
+  const unit = $('lunit').value;
   const reason = $('lreason').value.trim();
-  
-  if (!start || !end || !reason) { alert('請填寫完整資訊'); return; }
-  if (start > end) { alert('結束日期不能早於開始日期'); return; }
-  
+  let start, end, hours;
+
+  if (unit === 'day') {
+    start = $('lstart').value;
+    end = $('lend').value;
+    if (!start || !end || !reason) { alert('請填寫完整資訊'); return; }
+    if (start > end) { alert('結束日期不能早於開始日期'); return; }
+    const days = Math.round((new Date(end) - new Date(start)) / 86400000) + 1;
+    hours = days * 8;
+  } else {
+    const date = $('ldate').value, st = $('lstime').value, et = $('letime').value;
+    if (!date || !st || !et || !reason) { alert('請填寫完整資訊'); return; }
+    if (et <= st) { alert('結束時間要晚於開始時間'); return; }
+    const [sh, sm] = st.split(':').map(Number);
+    const [eh, em] = et.split(':').map(Number);
+    hours = Math.round(((eh * 60 + em) - (sh * 60 + sm)) / 60 * 10) / 10;
+    start = date + ' ' + st;
+    end = date + ' ' + et;
+  }
+
+  if (!reason) { alert('請填寫請假原因'); return; }
+
   $('lstatus').innerHTML = '<div class="spin"></div><div class="status">送出中...</div>';
-  
+
   try {
     const res = await fetch(API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ source: 'liff', action: 'leave', uid: window.UID, name: window.NAME, type, start, end, reason })
+      body: JSON.stringify({ source: 'liff', action: 'leave', uid: window.UID, name: window.NAME, type, start, end, hours, reason })
     });
     const data = await res.json();
     $('lstatus').innerHTML = `<div class="status ${data.ok ? 'ok' : 'err'}">${data.ok ? '✅ ' : '❌ '}${data.msg}</div>`;
@@ -241,7 +279,7 @@ async function submitLeave() {
 // ==================== 紀錄頁面 ====================
 async function renderRecords() {
   $('content').innerHTML = '<div class="card"><div class="spin"></div><div class="status">載入中...</div></div>';
-  
+
   try {
     const res = await fetch(API_URL, {
       method: 'POST',
@@ -249,16 +287,15 @@ async function renderRecords() {
       body: JSON.stringify({ source: 'liff', action: 'records', uid: window.UID })
     });
     const data = await res.json();
-    
+
     if (!data.ok) {
       $('content').innerHTML = `<div class="card"><div class="status err">❌ ${data.msg}</div></div>`;
       return;
     }
-    
+
     let html = `<div class="card"><h2>📋 ${data.name} 本月紀錄</h2>`;
-    
-    // 打卡紀錄
-    html += '<h3 style="margin:12px 0 8px;color:#555">打卡紀錄</h3>';
+
+    html += '<h3 style="margin:12px 0 8px">打卡紀錄</h3>';
     if (data.records.length === 0) {
       html += '<div style="color:#999;text-align:center;padding:8px">本月尚無打卡紀錄</div>';
     } else {
@@ -271,9 +308,8 @@ async function renderRecords() {
         </div>`;
       });
     }
-    
-    // 請假紀錄
-    html += '<h3 style="margin:16px 0 8px;color:#555">請假紀錄</h3>';
+
+    html += '<h3 style="margin:16px 0 8px">請假紀錄</h3>';
     if (data.leaves.length === 0) {
       html += '<div style="color:#999;text-align:center;padding:8px">本月尚無請假紀錄</div>';
     } else {
@@ -282,11 +318,11 @@ async function renderRecords() {
         html += `<div class="record-item">
           <span class="tag ${tagClass}">${l.status}</span>
           <span style="margin-left:8px;font-weight:bold">${l.type}</span>
-          <span style="margin-left:8px;color:#666;font-size:0.85rem">${l.start}~${l.end}</span>
+          <span style="margin-left:8px;color:#666;font-size:0.85rem">${l.start}~${l.end}（${l.hours}小時）</span>
         </div>`;
       });
     }
-    
+
     html += '<button type="button" class="btn btn-gray" onclick="liff.closeWindow()" style="margin-top:16px">關閉</button></div>';
     $('content').innerHTML = html;
   } catch(e) {
